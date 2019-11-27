@@ -68,7 +68,7 @@ receive(odomSub);
 while true
     % Receive laser scan and odometry message.
     scanMsg = receive(laserSub);
-    disp("got new scan")
+    disp("got new s")
     odompose = odomSub.LatestMessage;
     
     n = size(scanMsg.Ranges, 1);
@@ -92,11 +92,11 @@ while true
     odomQuat = [odompose.Orientation.W, odompose.Orientation.X, odompose.Orientation.Y, odompose.Orientation.Z];
     odomRotation = quat2eul(odomQuat);
     pose = [odompose.Position.X, odompose.Position.Y odomRotation(1)];
-    disp("starting AMCL...")
+
     % Update estimated robot's pose and covariance using new odometry and
     % sensor readings.
     [isUpdated, estimatedPose, estimatedCovariance] = amcl(pose, scan);
-    disp("Done AMCL processing")
+    
     normie = norm(estimatedCovariance,'fro')
     
     msg = rosmessage('geometry_msgs/PoseWithCovarianceStamped');

@@ -18,9 +18,11 @@
         for i = 1 : (pathNodeCount - 1)
             pathLen = pathLen + norm(rpath(i), rpath(i+1));
         end
-        score = pathNodeCount * pathLen;
+%         score = pathNodeCount * pathLen
+        score = pathLen
         if (score < bestScore)
-            bestScore = score;
+            disp("==================");
+            bestScore = score
             bestPath = rpath;
             bestPrm = prm;
         end
