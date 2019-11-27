@@ -64,12 +64,12 @@ while true
         
         [robotPath, prm] = pathplan(40, 40, robotCurrentPose(1:2)', endLocation, mapInflated);
         
-%         for i = 1:size(robotPath,1)
-%             disp("New way point waypoint at:");
-%             [d, ix] = min (norm(centerMap - robotPath(i,:)));
-%             robotPath(i,:) = centerMap (ix,:);
-%             disp(centerMap (ix,:));
-%         end
+        for i = 1:size(robotPath,1)
+            disp("Adding extra centering waypoint at:");
+            [d, ix] = min (norm(centerMap - robotPath(i,:)));
+            robotPath(i,:) = centerMap (ix,:);
+            disp(centerMap (ix,:));
+        end
         
         disp("found a path, showing PRM...");
         show(prm);
@@ -96,12 +96,14 @@ while true
         send(cmdVelPub, avoidMsg);
        
     elseif state == "waypoint"
-        disp("state is waypoint")
+        disp("state is wayp")
         if ( size(robotPath, 1) == 0 ) % reached final waypoint
             msg.Linear.X = 0;
             msg.Angular.Z = 0;
+%             state = "grab_block";
         end
         
+%         distanceToGoal = norm(robotCurrentPose(1:2) - robotGoal(:));
         angleDiff = atan2(robotPath(1,2)-robotCurrentPose(2), ...
                        robotPath(1,1)-robotCurrentPose(1)) - robotCurrentPose(3);
         distToNext = norm(robotPath(1,:)' - robotCurrentPose(1:2));
@@ -111,67 +113,60 @@ while true
 
         if (distToNext > 0.04) % not at current waypoint     
             if (avoidMsg.Linear.X > 0 && abs(angleDiff) < deg2rad(5))
-                disp("Moving Forward, dist to next is: ");
-                disp(distToNext);
+                 disp("Moving Forward, dist to next is: ");
+                distToNext
                 % go forwards!
                 msg.Linear.X = min(distToNext*1.2, 0.07);
-                disp("moving at rate");
-                disp(msg.Linear.X);
             else
                 disp("Adjusting Angle, diff is: ");
-                disp(angleDiff);
+                angleDiff
                 msg.Linear.X = 0;
                 % turn!
                 if (angleDiff > 0)
                     msg.Angular.Z = min(angleDiff*0.2, 0.5);
                 else
                     msg.Angular.Z = max(angleDiff*0.2, -0.5);
-                end
-                disp("Turning at rate:");
-                disp(msg.Angular.Z);
+                end   
             end
         else % not at end but have reach a waypoint
             % pop off the current waypoint
             robotPath(1, :) = [];
             disp("Popping waypoint");
         end
-        
         [distToNext angleDiff msg.Linear.X msg.Angular.Z]
-        send(cmdVelPub, msg);
+%         send(cmdVelPub, msg);
+    elseif state == "get_block"
+        distanceToGoal = norm(robotCurrentPose(1:2) - robotGoal(:));
+        angleDiff = atan2(robotPath(1,2)-robotCurrentPose(2), ...
+                       robotPath(1,1)-robotCurrentPose(1)) - robotCurrentPose(3);
+        distToNext = norm(robotPath(1,:)' - robotCurrentPose(1:2));
+        msg = rosmessage('geometry_msgs/Twist');
         
-%     elseif state == "get_block"
-%         disp("state is get_block");
-%         distanceToGoal = norm(robotCurrentPose(1:2) - robotGoal(:));
-%         angleDiff = atan2(robotPath(1,2)-robotCurrentPose(2), ...
-%                        robotPath(1,1)-robotCurrentPose(1)) - robotCurrentPose(3);
-%         distToNext = norm(robotPath(1,:)' - robotCurrentPose(1:2));
-%         msg = rosmessage('geometry_msgs/Twist');
-%         
-%         avoidMsg = receive(avoidSub);
-% 
-%         if (distToNext > 0.04) % not at current waypoint     
-%             if (avoidMsg.Linear.X > 0 && abs(angleDiff) < deg2rad(5))
-%                  disp("Moving Forward, dist to next is: ");
-%                 distToNext
-%                 % go forwards!
-%                 msg.Linear.X = min(distToNext*1.2, 0.07);
-%             else
-%                 disp("Adjusting Angle, diff is: ");
-%                 angleDiff
-%                 msg.Linear.X = 0;
-%                 % turn!
-%                 if (angleDiff > 0)
-%                     msg.Angular.Z = min(angleDiff*0.2, 0.5);
-%                 else
-%                     msg.Angular.Z = max(angleDiff*0.2, -0.5);
-%                 end   
-%             end
-%         else % not at end but have reach a waypoint
-%             % pop off the current waypoint
-%             robotPath(1, :) = [];
-%             disp("Popping waypoint");
-%         end
-%         [distToNext angleDiff msg.Linear.X msg.Angular.Z]
+        avoidMsg = receive(avoidSub);
+
+        if (distToNext > 0.04) % not at current waypoint     
+            if (avoidMsg.Linear.X > 0 && abs(angleDiff) < deg2rad(5))
+                 disp("Moving Forward, dist to next is: ");
+                distToNext
+                % go forwards!
+                msg.Linear.X = min(distToNext*1.2, 0.07);
+            else
+                disp("Adjusting Angle, diff is: ");
+                angleDiff
+                msg.Linear.X = 0;
+                % turn!
+                if (angleDiff > 0)
+                    msg.Angular.Z = min(angleDiff*0.2, 0.5);
+                else
+                    msg.Angular.Z = max(angleDiff*0.2, -0.5);
+                end   
+            end
+        else % not at end but have reach a waypoint
+            % pop off the current waypoint
+            robotPath(1, :) = [];
+            disp("Popping waypoint");
+        end
+        [distToNext angleDiff msg.Linear.X msg.Angular.Z]
         
     end
 end
