@@ -58,8 +58,10 @@ visualizationHelper = ExampleHelperAMCLVisualization(myLIDARmap);
 xlim([1.75 4.5]);
 ylim([1.7 3.2]);
 
-numUpdates = 60;
 num_cycles = 0;
+
+localized_once = false;
+
 while true
     % Receive laser scan and odometry message.
     scanMsg = receive(laserSub);
@@ -97,8 +99,11 @@ while true
 %     msg.Header.FrameId = 'unlocalized_map';
     if (normie > 0.07)
         msg.Header.FrameId = 'unlocalized_map';
+    elseif (normie > 0.1 && localized_once)
+        msg.Header.FrameId = 'unlocalized_map';
     else
         msg.Header.FrameId = 'localized_map';
+        localized_once = true;
     end
     
     msg.Pose.Pose.Position.X = estimatedPose(1);
@@ -109,6 +114,7 @@ while true
     % Drive robot to next pose.
     % Plot the robot's estimated pose, particles and laser scans on the map.
     if isUpdated
+        disp("successful amcl update");
         num_cycles = num_cycles + 1;
         plotStep(visualizationHelper, amcl, estimatedPose, scan, num_cycles)
     end

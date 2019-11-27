@@ -82,6 +82,8 @@ while true
         disp(robotGoal);
         disp("initial location is");
         disp(robotInitialLocation);
+    elseif amclMsg.Header.FrameId == "unlocalized_map"
+       state = "lost";
     end
     
 %     if state == "waypoint" && ~isinf(blockPoseMsg.X)
@@ -110,7 +112,8 @@ while true
         avoidMsg = receive(avoidSub);
 
         if (distToNext > 0.04) % not at current waypoint     
-            if (avoidMsg.Linear.X > 0 && abs(angleDiff) < deg2rad(5))
+%             if (avoidMsg.Linear.X > 0 && abs(angleDiff) < deg2rad(5))
+             if can_move_foward(laserMsg) && abs(angleDiff) < deg2rad(15)
                 disp("Moving Forward, dist to next is: ");
                 disp(distToNext);
                 % go forwards!
