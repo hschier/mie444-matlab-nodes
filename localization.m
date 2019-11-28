@@ -28,7 +28,7 @@ rangeFinderModel = likelihoodFieldSensorModel;
 rangeFinderModel.SensorLimits = [0.12 2];
 rangeFinderModel.Map = myLIDARmap;
 rangeFinderModel.NumBeams = 500;
-rangeFinderModel.MaxLikelihoodDistance = 0.02;
+rangeFinderModel.MaxLikelihoodDistance = 0.05;
 rangeFinderModel.MeasurementNoise = 0.03;
 rangeFinderModel.ExpectedMeasurementWeight = 1;
 rangeFinderModel.RandomMeasurementWeight = 0;
@@ -38,7 +38,7 @@ rangeFinderModel.SensorPose = [0 0 0];
 
 laserSub = rossubscriber('/scan', 'sensor_msgs/LaserScan');
 odomSub = rossubscriber('/pose', 'geometry_msgs/Pose');
-thinkingSub = rossubscriber('/thinking', 'std_msgs/Bool');
+% thinkingSub = rossubscriber('/thinking', 'std_msgs/Bool');
 
 amclPub = rospublisher('/amcl_pose', 'geometry_msgs/PoseWithCovarianceStamped');
 
@@ -65,6 +65,11 @@ localized_once = false;
 
 receive(odomSub);
 
+msg = rosmessage('geometry_msgs/PoseWithCovarianceStamped');
+msg.Header.FrameId = 'unlocalized_map';
+
+
+startTime = cputime;
 while true
     % Receive laser scan and odometry message.
     scanMsg = receive(laserSub);
@@ -88,10 +93,12 @@ while true
     % For sensors that are mounted upside down, you need to reverse the
     % order of scan angle readings using 'flip' function.
     
-    % Compute robot's pose [x,y,yaw] from odometry message.
+%     Compute robot's pose [x,y,yaw] from odometry message.
     odomQuat = [odompose.Orientation.W, odompose.Orientation.X, odompose.Orientation.Y, odompose.Orientation.Z];
     odomRotation = quat2eul(odomQuat);
     pose = [odompose.Position.X, odompose.Position.Y odomRotation(1)];
+
+%     pose = [odomPose.X, odomPose.Y, odomPose.Z];
     disp("starting AMCL...")
     % Update estimated robot's pose and covariance using new odometry and
     % sensor readings.
@@ -99,17 +106,24 @@ while true
     disp("Done AMCL processing")
     normie = norm(estimatedCovariance,'fro')
     
-    msg = rosmessage('geometry_msgs/PoseWithCovarianceStamped');
-%     msg.Header.FrameId = 'unlocalized_map';
-    if (normie > 0.15 && ~localized_once) % 0.08 for a good map
-        msg.Header.FrameId = 'unlocalized_map';
-    elseif (normie > 0.50) % 0.20 for a good map
-        msg.Header.FrameId = 'unlocalized_map';
-        % localized_once = false;
-    else
-        msg.Header.FrameId = 'localized_map';
-        if (~localized_once)
-            send(amclPub, msg);
+    if (normie < 0.14)
+        msg.Header.FrameId = "localized_map";
+    end 
+    
+    currTime = cputime;
+    if (currTime - startTime > 70)
+      msg.Header.FrameId = "localized_map";
+    end
+  
+%     if (normie > 0.1 && ~localized_once) % 0.08 for a good map
+%         msg.Header.FrameId = 'unlocalized_map';
+%     elseif (normie > 0.50) % 0.20 for a good map
+%         msg.Header.FrameId = 'unlocalized_map';
+%         % localized_once = false;
+%     else
+%         msg.Header.FrameId = 'localized_map';
+%         if (~localized_once)
+%             send(amclPub, msg);
             %% speedy mode :D
             % Rotational error due to rotational motion
             % Rotational error due to translational motion
@@ -129,9 +143,9 @@ while true
 %             amcl.GlobalLocalization = false;
 %             
 %             [isUpdated, estimatedPose, estimatedCovariance] = amcl(pose, scan);
-        end
-        localized_once = true;
-    end
+%         end
+%         localized_once = true;
+%     end
     
     %% update pose
     msg.Pose.Pose.Position.X = estimatedPose(1);

@@ -1,3 +1,7 @@
+clear; clc; close all;
+rosshutdown;
+
+
 setenv('ROS_MASTER_URI', 'http://192.168.1.20');
 setenv('ROS_HOSTNAME', '192.168.1.20');
 rosinit('192.168.1.20','NodeHost','192.168.1.20')
@@ -24,23 +28,30 @@ inflatedMap = copy(map);
 inflate(map, 0.02);
 inflate(inflatedMap, 0.08);
 
-block_points = inf (10, 2);
+block_points = inf (8, 2);
 queue_index = 1;
 
 while true
+    msg = rosmessage('geometry_msgs/Point');
+    msg.X = inf;
+    msg.Y = inf;
+    msg.Z = inf;
     try
         % Receive laser scan and odometry message.
         scanMsg = receive(laserSub);
-%         poseMsg = receive(amclSub);
+        poseMsg = receive(amclSub);
+        if (poseMsg.Header.FrameId == "unlocalized_map")
+            send(pointPub, msg);
+
+            continue;
+        end
+        robot_map = [poseMsg.Pose.Pose.Position.X; poseMsg.Pose.Pose.Position.Y; poseMsg.Pose.Pose.Position.Z];
+
     %     bag_counter = bag_counter + 1;
     %     scanMsg = msgStruct{bag_counter};
     
         scanMsg.Ranges(1:250) = flip(scanMsg.Ranges(1:250));
         scanMsg.Ranges(251:500) = flip(scanMsg.Ranges(251:500));
-        msg = rosmessage('geometry_msgs/Point');
-        msg.X = inf;
-        msg.Y = inf;
-        msg.Z = inf;
         ranges = scanMsg.Ranges;
         %ranges = imgaussfilt(ranges,0.01);
         ang_inc = scanMsg.AngleIncrement;
@@ -127,7 +138,7 @@ while true
                 end
             end
         end
-
+        
         %find clusters of appropriate euclidean length and not in walls
         for i = 1:val
             x1 = pos(1,clusters_idx(i,1));
@@ -150,12 +161,12 @@ while true
                     if plot_on
                         scatter3(block_origin(1),block_origin(2),i, [], [0,0,0]);
                     end
+                    R = [cos(robot_map(3)) -sin(robot_map(3)); sin(robot_map(3)) cos(robot_map(3))];
+                    block_map = R*block_origin + robot_map(1:2);
 
                     %block and robot desired pose in  map frame
                     %robot_map = [rob_x rob_y rob_theta] from localized pose
-                    %robot_map = [poseMsg.Pose.Pose.Position.X; poseMsg.Pose.Pose.Position.Y];
-                    robot_map = [0;0];
-                    block_map = block_origin + robot_map;
+                    %block_map = block_origin + robot_map(1:2);
 %                     msg.X = block_map(1);
 %                     msg.Y = block_map(2);
 %                     msg.Z = 0;
@@ -176,29 +187,28 @@ while true
             normie = normie + norm (block_points(k,:)- block_mean);
         end
         normie
-        if normie < 0.15
-            avg_block = mean(block_points);
-            msg.X = avg_block(1);
-            msg.Y = avg_block(2);
+        if normie < 1.5
+            msg.X = block_mean(1);
+            msg.Y = block_mean(2);
             msg.Z = 0;
             %poses in a radius around the block
-%             radius = 0.125;
-%             robot_poses = zeros(3,size(block_points, 1));
-%             robot_poses(3,:) = linspace(0,2*pi,size(block_points, 1));
-%             robot_poses(1:2,:) = block_map + [r*cos(pi+robot_poses(3,:)) ; r*sin(pi+robot_poses(3,:))];
-% 
-%             %finds points that are possible for the robot to move to
-%             for j = 1:size(block_points, 1)
-%                 if (checkOccupancy(inflatedMap, robot_poses(1:2,j)')~=0)
-%                     robot_poses(:,j) = inf;
-%                 end
-%             end
-% 
-%             dist = sum((robot_poses(1:2,:)'-robot_map(1:2)) .^2,2);
-%             closest = robot_poses(:,dist == min(dist));
+            radius = 0.125;
+            robot_poses = zeros(3,size(block_points, 1));
+            robot_poses(3,:) = linspace(0,2*pi,size(block_points, 1));
+            robot_poses(1:2,:) = block_mean + [radius*cos(pi+robot_poses(3,:)) ; radius*sin(pi+robot_poses(3,:))];
+
+            %finds points that are possible for the robot to move to
+            for j = 1:size(block_points, 1)
+                if (checkOccupancy(inflatedMap, robot_poses(1:2,j)')~=0)
+                    robot_poses(:,j) = inf;
+                end
+            end
+
+            dist = sum((robot_poses(1:2,:)'-robot_map(1:2)) .^2,2);
+            closest = robot_poses(:,dist == min(dist));
         end 
-    catch
-        'error'
+    catch e
+        disp(e.message)
     end
     send(pointPub, msg);
 end
